@@ -1,0 +1,12 @@
+# Verified on Python 3.12 (macOS arm64)
+-c requirements-lock.txt
+streamlit>=1.35
+requests>=2.31
+python-dotenv>=1.0
+pymupdf>=1.24
+openai>=1.30
+
+# Lightweight MP4 video renderer
+imageio-ffmpeg==0.6.0
+Pillow>=10
+edge-tts==7.2.7

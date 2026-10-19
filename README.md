@@ -1,5 +1,7 @@
 # ResearchLens · 学生科研伙伴
 
+在线工作台：https://researchlens-l1js.onrender.com/ （Render 免费实例，空闲后首次访问需要等待启动；账号和资料采用临时存储，可能在重启或重新部署后丢失。）
+
 面向校园生物科研学习与研究准备的开源项目源码包。包含静态入口页和现有 Streamlit 应用源码。
 
 **这是网站项目，不是模型权重包。** AI 能力通过用户自行配置的兼容模型接口提供。此包未将 Streamlit 重写为 JavaScript，也没有虚构 REST API。

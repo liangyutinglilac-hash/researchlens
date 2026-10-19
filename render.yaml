@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: researchlens
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
+    envVars:
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"

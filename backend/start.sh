@@ -5,8 +5,10 @@ export STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 export RESEARCHLENS_EXTERNAL_DIGEST_WORKER=1
 PYTHON_BIN="${RESEARCHLENS_PYTHON:-.venv-py312/bin/python}"
 if [ ! -x "$PYTHON_BIN" ]; then
-  echo "找不到可执行的 Python：$PYTHON_BIN" >&2
-  echo "请使用 Python 3.12 环境，或设置 RESEARCHLENS_PYTHON 指向其解释器。" >&2
+  PYTHON_BIN="${RESEARCHLENS_PYTHON:-python3}"
+fi
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1 && [ ! -x "$PYTHON_BIN" ]; then
+  echo "找不到 Python。请先创建 Python 3.12 环境，或设置 RESEARCHLENS_PYTHON。" >&2
   exit 1
 fi
 PORT="${RESEARCHLENS_PORT:-8501}"

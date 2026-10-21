@@ -113,7 +113,8 @@ def parse_pubmed(xml,today):
         abstract='\n'.join(((a.get('Label','')+': ') if a.get('Label') else '')+''.join(a.itertext()).strip() for a in article.findall('Abstract/AbstractText'))
         papers.append({'id':'pubmed:'+pmid,'title':text(article,'ArticleTitle') or '无标题','date':publication,
                        'doi':doi,'abstract':abstract,'authors':authors,'url':f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/',
-                       'full_text':'','type':'PubMed article','venue':text(article,'Journal/Title'),'source':'PubMed'})
+                       'full_text':'','type':'PubMed article','venue':text(article,'Journal/Title'),'source':'PubMed',
+                       'venue_type':'journal','issns':list({v for v in [text(article,'Journal/ISSN'),text(entry,'MedlineCitation/MedlineJournalInfo/ISSNLinking')] if v})})
     return papers
 
 class PubMedClient:
@@ -136,7 +137,9 @@ class PubMedClient:
         result=self.request('esearch.fcgi',{'db':'pubmed','term':query,'datetype':'edat','mindate':str(start).replace('-','/'),
                     'maxdate':str(end).replace('-','/'),'retmax':50,'sort':'pub_date','retmode':'json'}).json()
         data=result.get('esearchresult',{})
-        if 'ERROR' in result or data.get('errorlist') or not isinstance(data.get('idlist'),list):raise ValueError('Invalid PubMed response')
+        errors=data.get('errorlist') or {}
+        has_errors=any(bool(value) for value in errors.values()) if isinstance(errors,dict) else bool(errors)
+        if result.get('ERROR') or result.get('error') or has_errors or not isinstance(data.get('idlist'),list):raise ValueError('Invalid PubMed response')
         ids=data['idlist'];count=int(data.get('count',0))
         papers=[]
         if ids:

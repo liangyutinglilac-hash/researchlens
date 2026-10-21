@@ -20,7 +20,7 @@ VIDEO_AUDIENCE = '科普'
 _LOCK = threading.Lock()
 _RECOVERED = set()
 _RECOVERY_LOCK = threading.Lock()
-VIDEO_SEARCH_VERSION = 3
+VIDEO_SEARCH_VERSION = 4
 
 
 class AudioUnavailable(RuntimeError):
@@ -422,7 +422,7 @@ def render(db, uid, jid, paper, scenes, scope, key='', base_url='', external_tts
     run_cmd([ff, '-y', '-f', 'concat', '-safe', '0', '-i', str(concat), '-c', 'copy', '-movflags', '+faststart', str(out / 'video.mp4')])
     (out / 'subtitles.srt').write_text('\n'.join(captions))
     metadata['duration_seconds'] = round(elapsed, 1)
-    metadata['visual_mode'] = '浅色内容动画与概念示意图（非实验图）'
+    metadata['visual_mode'] = '深蓝双栏概念动画与右侧讲解（非实验图）'
     metadata['subtitle_timing'] = '按字符比例估算，未进行语音识别逐字对齐'
     metadata['audio_mode'] = '；'.join(dict.fromkeys(audio_modes))
     (out / 'script.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
@@ -542,7 +542,16 @@ def _rank_hot_papers(papers, keyword, field, count):
     return [paper for _, _, paper in ranked[:int(count)]]
 
 
-def search_hot(db, keyword, field, start, count, key, min_citations=0):
+def search_hot(db, keyword, field, start, count, key, min_citations=0,provider='OpenAlex',model_key='',model_name='',base_url='',optimize=True):
+    if provider=='PubMed':
+        from literature_search import get_pubmed_search,prepare_query
+        raw_query=' '.join(value.strip() for value in (keyword,field) if value.strip())
+        query,notice=prepare_query(raw_query,model_key,model_name,base_url,optimize)
+        end=datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
+        result=get_pubmed_search(str(db)).search(query,str(start),end,int(count),sort='relevance')
+        result.update(requested_query=raw_query,version=VIDEO_SEARCH_VERSION,minimum_citations=0)
+        result['notice']=notice+' '+result.get('notice','')
+        return result
     from paper_search import get_search_client
 
     raw_query = ' '.join(value.strip() for value in (keyword, field) if value.strip())
@@ -613,12 +622,12 @@ def video_status(db, uid, paper=None):
                     st.text('原文证据：' + scene['evidence'])
 
 
-def render_video(db, uid, current_paper, key, model, openalex_key='', base_url=''):
+def render_video(db, uid, current_paper, key, model, openalex_key='', base_url='',provider='PubMed',optimize=True):
     recover(db)
     st.subheader('🎬 科普视频')
-    st.caption('输入关键词或领域，检索按被引次数排序的热点论文；选择素材后生成一条轻量科普视频。时长随内容和配音变化，画面使用浅色内容动画（概念示意，非实验图）。')
+    st.caption(f'当前检索来源：{provider}。输入关键词或领域，选择真实论文素材后生成科普视频。PubMed按相关性选材，OpenAlex可按被引次数选材。时长随内容和配音变化，画面使用深蓝双栏概念动画。')
     st.caption('视频会调用当前模型服务生成分镜；若服务商支持 `tts-1` 则使用模型配音，否则自动尝试本机中文语音，可选在线中文配音作为备用；配音不可用时默认生成明确标注的无声字幕版；勾选“必须有中文配音”后，配音失败才会停止任务。')
-    if not openalex_key:
+    if provider=='OpenAlex' and not openalex_key:
         st.info('热点论文检索使用 OpenAlex；当前未填写 OpenAlex Key。公共额度用完时请填写 OpenAlex Key，NextCREDITS Key 不能替代它。已有当前论文或 PDF 时，可直接勾选下方素材生成视频。')
     with st.form('video_topic_search'):
         keyword_input, field_input = st.columns(2)
@@ -627,8 +636,8 @@ def render_video(db, uid, current_paper, key, model, openalex_key='', base_url='
         start_default = datetime.now(ZoneInfo('Asia/Shanghai')).date() - timedelta(days=365 * 5)
         start = st.date_input('最早发表日期', value=start_default)
         count = st.slider('热点文献数量', min_value=3, max_value=8, value=5)
-        min_citations = st.number_input('最低被引次数', min_value=0, value=0, step=10, help='可尝试50或100筛选较多被引的研究；新发表的好论文也可能被引较少。')
-        st.caption('先严格匹配主题，再优先按被引次数排序。被引量随发表时间和领域变化，不能单独代表论文质量。')
+        min_citations = st.number_input('最低被引次数（仅OpenAlex）', min_value=0, value=0, step=10,disabled=provider=='PubMed', help='PubMed不提供被引次数；PubMed模式不应用此门槛。')
+        st.caption('PubMed使用实际检索式按相关性选材，请核对摘要是否符合主题。' if provider=='PubMed' else '先严格匹配主题，再按被引次数排序。')
         search_button = st.form_submit_button('检索热点文献', type='primary')
     if search_button:
         # A failed/new search must never leave papers from the previous query
@@ -641,7 +650,8 @@ def render_video(db, uid, current_paper, key, model, openalex_key='', base_url='
                 del st.session_state[widget_key]
         try:
             with st.spinner('正在检索热点文献…'):
-                result = search_hot(db, topic_input, domain_input, start, count, openalex_key, min_citations)
+                result = search_hot(db, topic_input, domain_input, start, count, openalex_key, min_citations,provider,key,model,base_url,optimize)
+                result['provider']=provider
             st.session_state.video_results = result['papers']
             st.session_state.video_search_meta = {key: value for key, value in result.items() if key != 'papers'}
             st.session_state.video_topic = {'keyword': topic_input.strip(), 'field': domain_input.strip(), 'start': str(start), 'count': count, 'min_citations': min_citations}
@@ -650,13 +660,15 @@ def render_video(db, uid, current_paper, key, model, openalex_key='', base_url='
             from paper_search import SearchUnavailable
             if isinstance(error, (ValueError, SearchUnavailable)):
                 message = str(error)
+            elif provider=='PubMed':
+                message='PubMed检索未完成，请检查网络后重试，或使用已有论文/PDF作为视频素材。'
             elif not openalex_key:
                 message = '热点检索未完成：当前没有填写 OpenAlex API Key；如果公共额度已用完，请填写 OpenAlex Key。NextCREDITS Key 只能调用模型，不能用于 OpenAlex 检索。'
             else:
                 message = '热点检索暂不可用，请检查 OpenAlex 配额、网络和 API Key。'
             st.warning(message)
     meta = st.session_state.get('video_search_meta')
-    if meta and meta.get('version') != VIDEO_SEARCH_VERSION:
+    if meta and (meta.get('version') != VIDEO_SEARCH_VERSION or meta.get('provider','OpenAlex')!=provider):
         st.session_state.video_results = []
         st.session_state.video_selected_ids = []
         st.session_state.video_search_meta = None
@@ -665,11 +677,9 @@ def render_video(db, uid, current_paper, key, model, openalex_key='', base_url='
         mode = {'live': '实时热点检索', 'cache': '命中缓存', 'stale': '历史缓存', 'partial': '部分结果'}.get(meta.get('mode'), '检索结果')
         st.caption(f"{mode} · 获取时间：{datetime.fromtimestamp(meta['fetched'], ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S')}")
         if meta.get('requested_query'):
-            st.caption(f"本次检索词：{meta['requested_query']} · 结果要求标题或摘要命中关键词及已填写领域")
-        if meta.get('query_used') and meta.get('query_used') != meta.get('requested_query'):
-            st.caption(f"OpenAlex 扩展检索词：{meta['query_used']}")
-        if meta.get('notice'):
-            st.warning(meta['notice'])
+            st.caption(f"本次检索主题：{meta['requested_query']} · 来源：{provider}")
+        if meta.get('mode') in ('stale', 'partial'):
+            st.warning('本次检索未完成，当前显示历史缓存。' if meta['mode'] == 'stale' else '本次检索仅返回部分结果。')
     results = st.session_state.get('video_results', [])
     saved_topic = st.session_state.get('video_topic', {})
     if meta and saved_topic and (
@@ -685,7 +695,7 @@ def render_video(db, uid, current_paper, key, model, openalex_key='', base_url='
     for paper in results:
         ident = hashlib.sha256(paper['id'].encode()).hexdigest()[:16]
         checked = st.checkbox(
-            f"{paper['title']}（{paper.get('date', '未知')} · 被引 {paper.get('cited_by_count', 0)}）",
+            f"{paper['title']}（{paper.get('date', '未知')}"+(f" · 被引 {paper['cited_by_count']}" if paper.get('cited_by_count') is not None else '')+'）',
             value=paper['id'] in selected_ids,
             key=f'video_pick_{ident}',
         )
@@ -703,7 +713,7 @@ def render_video(db, uid, current_paper, key, model, openalex_key='', base_url='
             st.caption('这篇论文没有可用摘要，不能作为有原文证据的视频素材。')
     st.session_state.video_selected_ids = list(selected_ids)
     from curated_sources import render_import
-    selected_results.extend(render_import(db, uid, openalex_key))
+    selected_results.extend(render_import(db, uid, openalex_key,provider))
     if current_paper and (current_paper.get('full_text') or current_paper.get('abstract', '').strip()):
         include_default = not bool(results) and not meta and not (topic_input.strip() or domain_input.strip())
         if st.checkbox('把当前已选论文或上传PDF加入视频素材', value=include_default, key='video_include_current'):

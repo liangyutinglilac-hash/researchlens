@@ -46,7 +46,7 @@ def parse_metrics(data):
 def builtin_dataset():
     path = Path(__file__).parent/'data'/'jcr_2026.json'
     if not path.exists():
-        return {'records': [], 'metadata': {'records': 0}}
+        return {'records': []}
     return json.loads(path.read_text(encoding='utf-8'))
 
 def builtin_rows():
@@ -98,7 +98,7 @@ class MetricStore:
 
 def render_metric_import(store):
     with st.expander('期刊影响因子数据与导入',expanded=False):
-        st.write('JIF是期刊年度指标。开源包不附带商业指标数据，请导入有权使用的个人CSV。不同年份不混用，未匹配不记为0。')
+        st.write('JIF是期刊年度指标。已内置用户提供的2026年发布名单，表内为2025影响因子。个人CSV可补充或覆盖同一ISSN及指标年。不同年份不混用，未匹配不记为0。')
         st.caption('CSV列：issn、journal、jif、year、source。来源填数据出处或授权导出说明；多个ISSN用分号分隔。按账号保存，其他访客看不到你的指标表。')
         file=st.file_uploader('导入个人期刊指标表（UTF-8 CSV）',type='csv',key='metric_csv')
         if st.button('保存指标表',disabled=file is None):
@@ -108,9 +108,6 @@ def render_metric_import(store):
             except ValueError as e:st.error(str(e))
         st.download_button('下载空白CSV模板','issn,journal,jif,year,source\n',file_name='journal_metrics_template.csv',mime='text/csv')
         meta=builtin_dataset()['metadata']
-        if not meta['records']:
-            st.caption('未附带内置期刊指标；导入个人CSV后可使用影响因子筛选。')
-            return
         st.caption(f"内置完整名单：{meta['records']}行；2026发布年，2025指标年。仅有效ISSN及明确数值参与区间检索。<0.1、N/A和无效ISSN保留原值，不换算为0。数据来自提供的文件，未独立核验。")
         term=st.text_input('查询内置期刊名单',placeholder='输入期刊名或ISSN，查看学科与分区')
         if term.strip():

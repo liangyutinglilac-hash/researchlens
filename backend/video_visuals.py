@@ -1,4 +1,4 @@
-"""Content-led light illustrations for the science video."""
+"""Science-video illustrations, including the restored dark split layout."""
 import math
 from PIL import Image, ImageDraw, ImageFont
 
@@ -73,19 +73,57 @@ def _visual(draw, scene, progress, font):
 
 
 def scene_image(scene,index,total,fontpath,source,progress=0.5,mouth_open=False,subtitle=None):
-    im=Image.new('RGB',(1280,720),'#f3f8ff'); d=ImageDraw.Draw(im)
-    h=ImageFont.truetype(fontpath,32); f=ImageFont.truetype(fontpath,24); small=ImageFont.truetype(fontpath,18)
-    d.ellipse((-100,450,300,850),fill='#dbf5eb'); d.ellipse((1050,-160,1420,210),fill='#ffecd3')
-    d.text((42,22),'ResearchLens · 科普动画',font=small,fill='#277d80'); d.text((42,57),scene['title'],font=h,fill='#234569')
-    d.rounded_rectangle((35,125,1245,570),radius=28,fill='white',outline='#cddff3',width=3)
-    diagram=Image.new('RGB',(850,580),'white'); _visual(ImageDraw.Draw(diagram),scene,progress,f)
-    im.paste(diagram.crop((0,150,850,530)).resize((1120,380),Image.Resampling.LANCZOS),(80,160))
-    d.rounded_rectangle((42,615,1238,693),radius=18,fill='#e3eefb')
-    text=subtitle if subtitle is not None else scene['narration']; lines=[]; line=''
-    for char in text:
-        if d.textlength(line+char,font=f)>1120: lines.append(line); line=char
-        else: line+=char
-    if line: lines.append(line)
-    for j,line in enumerate(lines[:2]): d.text((65,624+j*29),line,font=f,fill='#234569')
-    d.text((45,587),f'{index+1}/{total} · '+source[:60],font=small,fill='#758ca7')
+    im=Image.new('RGB',(1280,720),'#0c2039'); d=ImageDraw.Draw(im)
+    small=ImageFont.truetype(fontpath,18)
+    d.text((46,28),'ResearchLens · 科普',font=small,fill='#74d7cf')
+    title=str(scene.get('title','科普解读'))
+    for size in range(32,19,-1):
+        heading=ImageFont.truetype(fontpath,size)
+        title_lines=_wrap(d,title,heading,1170)
+        if len(title_lines)<=2:break
+    for j,line in enumerate(title_lines[:2]):
+        d.text((46,70+j*38),line,font=heading,fill='#f3f7ff')
+
+    # Restore the four-node concept diagram and moving evidence markers.
+    labels=list((scene.get('visual') or {}).get('labels') or ['研究问题','研究方法','主要发现','证据局限'])[:4]
+    positions={1:[(395,350)],2:[(240,350),(570,350)],
+               3:[(230,245),(570,350),(230,490)],
+               4:[(230,245),(570,245),(230,490),(570,490)]}[len(labels)]
+    edges=[(0,1),(1,2),(2,3)] if len(labels)==4 else [(i,i+1) for i in range(len(labels)-1)]
+    for i,(a,b) in enumerate(edges):
+        x1,y1=positions[a];x2,y2=positions[b]
+        d.line((x1,y1,x2,y2),fill='#6686a8',width=4)
+        t=(progress+i/max(1,len(edges)))%1
+        x=x1+(x2-x1)*t;y=y1+(y2-y1)*t
+        d.ellipse((x-7,y-7,x+7,y+7),fill='#74ddd1')
+    for (x,y),label in zip(positions,labels):
+        radius=67
+        d.ellipse((x-radius,y-radius,x+radius,y+radius),fill='#234263',outline='#74d7cf',width=3)
+        for size in range(24,11,-1):
+            font=ImageFont.truetype(fontpath,size)
+            lines=_wrap(d,str(label),font,112)
+            if len(lines)*(size+4)<=100:break
+        height=len(lines)*(size+4)
+        for j,line in enumerate(lines):
+            d.text((x-d.textlength(line,font=font)/2,y-height/2+j*(size+4)),line,font=font,fill='#e5effc')
+
+    d.rounded_rectangle((800,145,1232,555),radius=24,fill='#1c3856')
+    narration=str(scene.get('narration',''))
+    for size in range(24,13,-1):
+        font=ImageFont.truetype(fontpath,size)
+        lines=_wrap(d,narration,font,380)
+        if len(lines)*(size+10)<=354:break
+    # Very long narration uses the current timed subtitle instead of clipping evidence.
+    if len(lines)*(size+10)>354:
+        font=ImageFont.truetype(fontpath,24);size=24
+        lines=_wrap(d,subtitle or narration,font,380)
+    for j,line in enumerate(lines[:354//(size+10)]):
+        d.text((826,169+j*(size+10)),line,font=font,fill='#e2ecfb')
+    d.text((65,575),'概念示意 · 非实验图片或定量结果',font=small,fill='#829cb6')
+    source_lines=_wrap(d,str(source),small,1170)
+    d.text((46,645),source_lines[0] if source_lines else '',font=small,fill='#829cb6')
+    d.text((46,688),f'{index+1} / {total}',font=small,fill='#74d7cf')
+    d.rounded_rectangle((160,695,1230,701),radius=3,fill='#243e59')
+    end=160+int(1070*(index+1)/max(1,total))
+    d.rounded_rectangle((160,695,end,701),radius=3,fill='#74d7cf')
     return im

@@ -113,7 +113,7 @@ def abstract(inv):
  return ' '.join(w for _,w in sorted((i,w) for w,positions in (inv or {}).items() for i in positions))
 def safe_error(e):
  from paper_search import SearchUnavailable
- if isinstance(e, SearchUnavailable): return str(e)
+ if isinstance(e, SearchUnavailable) or (type(e).__name__=='SearchUnavailable' and type(e).__module__ in ('paper_search','literature_search')): return str(e)
  if isinstance(e, requests.HTTPError):
   if e.response is not None and e.response.status_code == 429:
    return 'OpenAlex 暂时限流，请稍后重试，或在侧边栏配置自己的 API Key。'
@@ -125,7 +125,14 @@ def safe_error(e):
  return f'操作失败（{type(e).__name__}），请检查文件或服务配置。'
 def today():
  return datetime.now(ZoneInfo('Asia/Shanghai')).date()
-def search(q,dt,n,key,journal_issns=None):
+def search(q,dt,n,key,journal_issns=None,provider='PubMed',model_key='',model_name='',base_url='',optimize=True):
+ if provider=='PubMed':
+  from literature_search import get_pubmed_search,prepare_query
+  query,notice=prepare_query(q,model_key,model_name,base_url,optimize)
+  result=get_pubmed_search(str(DB)).search(query,dt,today().isoformat(),n,journal_issns)
+  result['notice']=notice+' '+result.get('notice','')
+  st.session_state.search_meta={k:v for k,v in result.items() if k != 'papers'}
+  return result['papers']
  from paper_search import get_search_client
  client=get_search_client(str(DB))
  result=client.search(q,dt,today().isoformat(),n,key) if journal_issns is None else client.search_journals(q,dt,today().isoformat(),n,key,journal_issns)
@@ -210,6 +217,9 @@ with st.sidebar:
  if provider=='OpenAI NextCREDITS' and 'OPENAI_MODEL' not in os.environ:
   model_default='gpt-6.1-sol'
  model=st.text_input('模型',value=model_default)
+ literature_provider=st.selectbox('文献检索来源',['PubMed','OpenAlex'],help='生物医学默认使用PubMed，不需要OpenAlex Key。其他学科可选择OpenAlex。')
+ optimize_query=st.checkbox('使用当前模型优化 PubMed 检索词',value=True,help='模型仅转换和扩展主题词，论文仍来自PubMed；可关闭后自行输入英文检索式。')
+ st.caption('PubMed → 真实论文；当前模型 → 检索词优化、解读与科普脚本。PubMed模式不使用OpenAlex额度。')
  if ai_key:
   st.success('模型服务 Key 已填写；当前 AI 请求会发送到所选服务商。')
  else:
@@ -227,7 +237,7 @@ with t1:
  if advanced:render_metric_import(metric_store)
  metric_rows=metric_store.rows();metric_years=sorted({r['year'] for r in metric_rows},reverse=True)
  with st.form('search'):
-  a,b,c=st.columns([4,2,1]);q=a.text_input('研究主题',value='artificial intelligence scientific discovery');dt=b.date_input('最早发表日期',value=date(2025,1,1));n=c.number_input('数量',1,50,8)
+  a,b,c=st.columns([4,2,1]);q=a.text_input('研究主题',value='gut microbiome type 2 diabetes');dt=b.date_input('最早发表日期',value=date(2025,1,1));n=c.number_input('数量',1,50,8)
   use_jif=False;jif_year=None;jif_min=0.;jif_max=1000.;journal_term=''
   if advanced:
    use_jif=st.checkbox('同时限定期刊影响因子（JIF）',value=False)
@@ -238,7 +248,7 @@ with t1:
    journal_term=st.text_input('期刊名称限定（可选）',placeholder='例如：Nature；用于缩小指标表中的期刊范围')
   go=st.form_submit_button('检索真实论文',type='primary')
  if advanced:st.caption('主题、日期和JIF区间可联合检索。已内置2026发布名单的2025指标；会议及未匹配期刊不填0。期刊指标不代表单篇论文质量。')
- st.caption('相同条件缓存15分钟；请求至少间隔3秒，限流时暂停，不会持续重试。')
+ st.caption(f'当前来源：{literature_provider}；相同条件缓存15分钟，限流时暂停。')
  search_ok=False
  if go:
   try:
@@ -248,13 +258,13 @@ with t1:
     if jif_year is None:raise ValueError('请先在“期刊影响因子数据与导入”中导入指标表，再启用JIF联合检索。')
     ids=metric_store.eligible(jif_year,jif_min,jif_max,journal_term)
     if not ids:raise ValueError('该指标年份、区间和期刊名称没有匹配记录，请调整条件。')
-    st.caption(f'匹配 {len(ids)} 个 ISSN，将分 {(len(ids)+99)//100} 批检索，每批最多100个；遇到限流会保留已取得的部分结果。')
+    st.caption(f'匹配 {len(ids)} 个 ISSN；PubMed合并期刊条件检索。' if literature_provider=='PubMed' else f'匹配 {len(ids)} 个 ISSN，将分 {(len(ids)+99)//100} 批检索。')
    with st.spinner('正在结合研究主题与期刊条件检索…'):
-    papers=search(q,str(dt),int(n),oa_key,ids)
+    papers=search(q,str(dt),int(n),oa_key,ids,literature_provider,ai_key,model,openai_base_url,optimize_query)
     papers=metric_store.annotate(papers,jif_year) if jif_year is not None else papers
     if use_jif:papers=[p for p in papers if p.get('journal_metric') and jif_min<=p['journal_metric']['jif']<=jif_max]
     st.session_state.results=papers
-    st.session_state.search_settings={'year':jif_year,'filtered':use_jif,'min':jif_min,'max':jif_max,'query':q}
+    st.session_state.search_settings={'year':jif_year,'filtered':use_jif,'min':jif_min,'max':jif_max,'query':q,'provider':literature_provider}
     search_ok=True
   except ValueError as e:st.warning(str(e))
   except Exception as e:
@@ -265,7 +275,10 @@ with t1:
   stamp=datetime.fromtimestamp(meta['fetched'],ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S')
   mode={'live':'实时检索','cache':'命中缓存','stale':'历史缓存','partial':'部分结果'}.get(meta['mode'],'检索')
   st.caption(f"{mode} · 获取时间（北京时间）：{stamp}")
-  if meta.get('notice'):st.warning(meta['notice'])
+  if meta.get('notice') and meta.get('mode') in ('stale','partial'):
+   st.warning('本次检索未完成，当前显示历史缓存。' if meta['mode']=='stale' else '本次检索仅返回部分结果。')
+ if settings.get('provider') and settings['provider']!=literature_provider:
+  st.info('检索来源已切换，请重新检索；下方仍为上次来源的结果。')
  if settings.get('query'):st.caption('当前展示主题：'+settings['query']+(f" · {settings['year']}年JIF {settings['min']:g}–{settings['max']:g}" if settings.get('filtered') else ''))
  if search_ok and not st.session_state.get('results'):st.info('当前条件没有返回记录，可放宽主题、日期'+('或JIF区间' if advanced else '')+'后再试。')
  papers=[p for p in st.session_state.get('results',[]) if p.get('date') and p['date']<=today().isoformat()]
@@ -273,7 +286,8 @@ with t1:
  if order=='JIF从高到低':
   papers.sort(key=lambda p:p.get('journal_metric',{}).get('jif',-1),reverse=True)
   st.caption('仅重排本次已取回的结果，不代表全部匹配文献的JIF排名。未知指标放在最后。')
- elif order=='被引次数从高到低':papers.sort(key=lambda p:p.get('cited_by_count',0),reverse=True)
+ elif order=='被引次数从高到低':
+  papers.sort(key=lambda p:p.get('cited_by_count') or 0,reverse=True)
  for i,p in enumerate(papers):
   with st.container(border=True):
    st.markdown(f'**{i+1}. {p["title"]}**');st.caption(f'{p["date"]} · {p["type"]} · {", ".join(p["authors"][:3])}')
@@ -282,7 +296,7 @@ with t1:
    if not advanced:st.caption(journal)
    elif metric:st.caption(f"{journal} · JIF {metric['jif']:g}（{metric['year']}指标年，{metric.get('status','未核验')}） · 来源：{metric['source']}")
    else:st.caption(journal+' · '+('JIF数据冲突，请检查指标表' if p.get('journal_metric_conflict') else 'JIF未知／未提供对应年度数据'))
-   if 'cited_by_count' in p:st.caption(f"文章被引次数：{p['cited_by_count']}（OpenAlex）")
+   if p.get('cited_by_count') is not None:st.caption(f"文章被引次数：{p['cited_by_count']}（OpenAlex）")
    st.write((p['abstract'][:350]+'…') if len(p['abstract'])>350 else (p['abstract'] or '无摘要'))
    import hashlib
    ident=hashlib.sha256(p['id'].encode()).hexdigest()[:16]
@@ -341,7 +355,7 @@ if p:
   st.markdown(qa['answer'])
 else:st.info('请先检索并选择论文，或上传 PDF。')
 from paper_video import render_video
-render_video(DB,user['id'],p,ai_key,model,oa_key,openai_base_url)
+render_video(DB,user['id'],p,ai_key,model,oa_key,openai_base_url,literature_provider,optimize_query)
 if audience != '大众科普':
  from research_workspace import render_workspace
  render_workspace(DB,lambda paper,aud,question,key,selected_model: interpret(paper,aud,question,key,selected_model,openai_base_url),ai_key,model,st.session_state.get('paper'),saved(),user['id'])

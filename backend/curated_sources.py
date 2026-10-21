@@ -86,7 +86,7 @@ def make_article(title, body, url=''):
             'venue': '', 'cited_by_count': None}
 
 
-def resolve_doi(db, value, key=''):
+def resolve_doi(db, value, key='', provider='OpenAlex'):
     from datetime import datetime
     from zoneinfo import ZoneInfo
     from paper_search import get_search_client
@@ -94,15 +94,20 @@ def resolve_doi(db, value, key=''):
     if len(dois) != 1:
         raise ValueError('请一次填写一个完整 DOI，例如 10.xxxx/xxxxx。')
     doi = dois[0]
-    result = get_search_client(str(db)).search(doi, '1800-01-01',
-        datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat(), 1, key)
+    if provider=='PubMed':
+        from literature_search import get_pubmed_search
+        result=get_pubmed_search(str(db)).search('"'+doi+'"[AID]', '1800-01-01',
+            datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat(), 5)
+    else:
+        result = get_search_client(str(db)).search(doi, '1800-01-01',
+            datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat(), 1, key)
     expected = doi.lower()
     result['papers'] = [p for p in result['papers'] if
                         str(p.get('doi', '')).lower().removeprefix('https://doi.org/').removeprefix('http://doi.org/') == expected]
     return result
 
 
-def render_import(db, uid, openalex_key):
+def render_import(db, uid, openalex_key, provider='OpenAlex'):
     import streamlit as st
     from accounts import Accounts
     account = Accounts(db)
@@ -132,13 +137,13 @@ def render_import(db, uid, openalex_key):
         if lookup:
             st.session_state.curated_doi_candidate = None
             try:
-                result = resolve_doi(db, doi, openalex_key)
+                result = resolve_doi(db, doi, openalex_key, provider)
                 if result.get('notice'):
                     st.warning(result['notice'])
                 if result['papers']:
                     st.session_state.curated_doi_candidate = result['papers'][0]
                 else:
-                    st.info('OpenAlex 没有找到该 DOI 的论文；不会用相似标题代替。可继续使用已导入的公众号材料。')
+                    st.info(provider+' 没有找到该 DOI 的论文；不会用相似标题代替。可继续使用已导入的公众号材料。')
             except ValueError as error:
                 st.warning(str(error))
             except Exception as error:

@@ -1,30 +1,26 @@
 # ResearchLens · 学生科研伙伴
 
-在线工作台：https://researchlens-l1js.onrender.com/ （Render 免费实例，空闲后首次访问需要等待启动；账号和资料采用临时存储，可能在重启或重新部署后丢失。）
+在线工作台：https://researchlens-l1js.onrender.com/ （沿用原 Render 服务；免费实例空闲后首次访问需要等待启动，账号和资料使用临时存储，可能在重启或重新部署后丢失。）
 
-面向校园生物科研学习与研究准备的开源项目源码包。包含静态入口页和现有 Streamlit 应用源码。
+ResearchLens 是一个面向学生的文献理解与科研准备原型：从检索真实文献、阅读文字型 PDF，到证据核对、科研项目整理、站内文献日报和科普视频脚本/动画。
 
-**这是网站项目，不是模型权重包。** AI 能力通过用户自行配置的兼容模型接口提供。此包未将 Streamlit 重写为 JavaScript，也没有虚构 REST API。
+本仓库是可公开发布的源码包，不包含个人数据库、上传材料、生成视频、虚拟环境或任何 API Key。它包含一个无需构建的静态入口，以及 `backend/` 中的 Streamlit/Python 完整工作台。
 
-## 目录
+## 先看静态入口
 
-- `index.html`：网页入口，直接用浏览器打开。
-- `styles.css`：响应式浅色界面，无外部字体或 CDN 依赖。
-- `app.js`：真实文献平台检索跳转、浏览器本地草稿、Markdown 导出。
-- `backend/`：完整 Python 应用源码与依赖、启动脚本。
-- `LICENSE`：MIT 项目代码许可证；第三方依赖各自遵循原许可证。
+直接打开 `index.html`，或在项目根目录运行：
 
-## 两种使用方式
+```bash
+python3 -m http.server 8080
+```
 
-### 只预览静态网页
+然后访问 `http://127.0.0.1:8080`。静态页面只把关键词跳转到 PubMed/OpenAlex，并把草稿保存在当前浏览器，不会调用模型或上传密钥。
 
-直接打开 `index.html`，或在项目根目录运行 `python3 -m http.server 8080` 后访问 http://127.0.0.1:8080 。可部署到静态托管平台。网页会把关键词带到 PubMed/OpenAlex 网站，不在浏览器中调用模型，也不保存密钥。草稿只保存在当前浏览器，不与账号同步。
+## 启动完整工作台
 
-### 运行完整工作台
+需要 Python 3.12 和可用的 FFmpeg 运行环境（视频功能使用 `imageio-ffmpeg`）：
 
-建议 Python 3.12，macOS / Linux：
-
-```sh
+```bash
 cd backend
 python3.12 -m venv .venv-py312
 source .venv-py312/bin/activate
@@ -32,7 +28,7 @@ python -m pip install -r requirements.txt
 sh start.sh
 ```
 
-打开 http://127.0.0.1:8501 ，首次注册自己的账号（密码至少 12 位）。`sh start.sh` 无需脚本可执行权限。先启动后端，再点击网页右上角“打开完整工作台”。静态入口和工作台是两个界面，入口不会自动调用 Python 函数。
+打开 `http://127.0.0.1:8501`。如果 8501 被占用，可使用 `RESEARCHLENS_PORT=8502 sh start.sh`。
 
 Windows PowerShell：
 
@@ -43,34 +39,35 @@ py -3.12 -m venv .venv-py312
 .venv-py312\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 ```
 
-在应用侧栏填写个人 OpenAlex Key 和模型服务配置；也可把 `backend/.env.example` 复制为 `backend/.env` 后编辑。模型 Key 与 OpenAlex Key 属于不同服务，不能混用。使用兼容网关时，需确认 Base URL、模型名及账户额度；第三方活动额度另受其使用条款限制。不要提交真实 `.env`。
+可以复制 `backend/.env.example` 为 `backend/.env`，或在侧栏填写配置。OpenAI 兼容服务需要同时匹配 API Key、Base URL 和模型名；OpenAlex Key 只用于 OpenAlex 检索，不能替代模型 Key。不要将真实 `.env`、数据库或个人论文提交到仓库。
 
-## 完整工作台功能和边界
+## 功能和边界
 
-- OpenAlex 文献检索、收藏、文字型 PDF 提取，模型解读与追问；扫描 PDF 不提供 OCR。
-- 个人科研项目、渐进引导、确认写入建议、方案快照、任务状态。
-- PubMed 站内日报；`start.sh` 启动独立更新进程，终端停止后更新也停止。没有邮件推送。
-- 科普脚本、字幕与轻量动画 MP4。视频渲染依赖 FFmpeg（imageio-ffmpeg），配音依赖可用模型语音接口、本机语音或可选在线服务；音频可用性不能保证，无配音时按应用提示处理。没有虚拟讲解小人或模型权重。
-- 账号与 SQLite 持久化；首次运行会创建新数据库。本包没有原用户、收藏或历史项目。
-- 不附带 JCR 商业指标表；已修正发行副本的缺表回退。导入有权使用的 CSV 后才能按 JIF 筛选。期刊指标不能替代论文质量判断。
-- 检索依赖网络与提供方额度；限流时可使用缓存、PDF、已保存材料。模型未配置时部分功能仅提供基础非 AI 引导。
+- PubMed/OpenAlex 文献检索、缓存、收藏、文字型 PDF 提取、AI 解读和追问。
+- 按账号隔离的项目、证据库、研究概览、方案快照和任务。
+- PubMed 站内文献日报；本地进程停止期间不会更新。
+- 科普脚本、字幕和轻量内容动画视频；配音取决于配置的语音接口或本机能力。
+- 期刊指标需要有权使用的 CSV；期刊指标不等于单篇论文质量。
 
-## 发布为开源项目
+扫描 PDF 暂无 OCR，检索和模型服务受网络、配额和第三方接口状态影响。模型输出、证据关系和研究建议必须人工核验，不能替代导师审核、伦理审批、生物安全审查或临床决策。
 
-1. 创建自己的 GitHub / Gitee 仓库，把本目录内容上传到仓库根目录。
-2. 保留 `.gitignore`；确认提交中没有密钥、数据库、日志、上传材料及生成视频。
-3. 阅读并确认 `LICENSE` 中的 MIT 代码授权；本许可证不授权第三方文献、数据、商标及依赖。公开前确认你有权发布所包含源码。
-4. 如只部署静态页，完整工作台按钮仍指向访问者自己的本机，不能提供远程科研服务。部署完整 Python 应用后，请修改 `index.html` 中的工作台链接。
-5. 完整应用公开部署需自行配置持久化磁盘、服务凭据和进程管理；本包不包含生产部署完成的承诺。
+## 数据与部署
 
-### Render 部署
+默认数据库是 `backend/papers.db`，首次启动自动创建。可以设置 `RESEARCHLENS_DB_PATH` 指向可写目录。现有线上服务沿用仓库根目录的 `render.yaml`；部署说明见 `backend/DEPLOY.md`。公开演示环境由访问者在侧栏填写自己的模型或 OpenAlex Key，不设置共享服务密钥。PubMed 基础检索无需 OpenAlex Key。免费临时实例不适合保存个人或未发表材料，长期使用需要另行配置持久化存储。
 
-仓库包含 `render.yaml`，可在 Render 创建免费 Web Service 后从该文件导入配置。服务会启动完整 Streamlit 工作台；Render 会自动提供 `PORT`，无需手动设置。免费实例空闲时会休眠，首次访问可能需要等待片刻。
+## 开源发布清单
 
-公开演示环境使用临时 SQLite 存储，不应保存真实研究资料、账号密码或任何密钥。请在工作台页面中自行输入模型和 OpenAlex 服务的个人 Key；不要将它们提交到仓库或配置为公开演示环境的共享变量。
+1. 在 GitHub/Gitee 创建仓库，把 `ResearchLens/` 内容上传到仓库根目录。
+2. 保留 `.gitignore`，确认没有 `.env`、`papers.db`、`uploads/`、`video_outputs/`、日志和 API Key。
+3. 保留 MIT `LICENSE`；论文、期刊指标、商标、字体和第三方依赖仍受各自许可约束。
+4. 发布前使用自己的服务凭据和数据目录，不要公开活动 API Key 或学生上传的论文。
 
-科研建议须由导师或专业人员审阅；预期应用成效不代表已完成规模化验证。
+## 验证
 
-## 发行验证
+```bash
+cd backend
+python -m py_compile *.py
+python -m unittest discover -s . -p 'test_*.py'
+```
 
-本包按文件白名单构建；Python 语法、静态脚本及交互逻辑检查的范围与限制见 `docs/VALIDATION.md`。不包含在线模型、实际配音或外部检索成功的保证。
+测试覆盖离线检索解析和安全边界；不保证外部 API、额度或语音服务在线可用。

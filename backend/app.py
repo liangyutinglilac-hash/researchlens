@@ -247,7 +247,7 @@ with t1:
    jif_max=hi.number_input('JIF上限',min_value=0.0,value=1000.0,step=1.0)
    journal_term=st.text_input('期刊名称限定（可选）',placeholder='例如：Nature；用于缩小指标表中的期刊范围')
   go=st.form_submit_button('检索真实论文',type='primary')
- if advanced:st.caption('主题、日期和JIF区间可联合检索。已内置2026发布名单的2025指标；会议及未匹配期刊不填0。期刊指标不代表单篇论文质量。')
+ if advanced:st.caption('导入指标后，可按主题、日期和JIF区间联合检索。会议及未匹配期刊不填0。期刊指标不代表单篇论文质量。')
  st.caption(f'当前来源：{literature_provider}；相同条件缓存15分钟，限流时暂停。')
  search_ok=False
  if go:

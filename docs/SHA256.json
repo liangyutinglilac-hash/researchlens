@@ -18,14 +18,15 @@
   "backend/video_visuals.py": "c0ed3daa3122a8553a555a9ba0a21b8925603f45b45e79ec8d1be9e361fd3175",
   "backend/DEPLOY.md": "3fb6cb56da92bf5dff58eb6c4d4f578409046a8493fec32e7733810e52ee0d08",
   "backend/literature_search.py": "075e6d46768bea85855d54a9fd28da5c1d682b9d83a7da8edb3ca42b2be4dcfe",
-  "backend/journal_metrics.py": "5a6f1225fd6642bb647c089b3f83acd3e4457ed402c40cde5c327454fca2dc29",
+  "backend/journal_metrics.py": "74848b4e0ef544806e6a1d9f548d6cfed236d635326e41e844c4ac481aadf265",
   "backend/.python-version": "f01d748a75eb195e6fd73201279bfb23f09036ddd360eb3e9ff40ef042acbc8a",
-  "backend/app.py": "3f264da50b6b7074f073a9c9a2ea2a99e2866bae742bb7665c8ea07a75f932f6",
+  "backend/app.py": "50e661f55d26004dbea81d3195109c3a2609d3817d6a80edfcdae43dfe354f10",
   "backend/.env.example": "6597c98eba8bdd8400e566326ed2a51beb73148cc362b5e3caf3cd947ed46970",
   "backend/requirements-lock.txt": "7849c246f471e9496c9121dafb9a3510eddee244de552a90c24cdc9ba63c572c",
   "backend/start.sh": "3611cc0c71c404dc014a9ab1c51177149654a8039248339add867aad29944acb",
   "backend/daily_digest.py": "4b9c8791226f28b8e0305cf8281975fceefcae0f8e4447041d929178e2b80a26",
-  "docs/VALIDATION.md": "e78186042f5c14ec450f114741a02bbda6ac0be6f016366783451fa5a7f44d34",
+  "docs/VALIDATION.md": "950b95f74cbf5775b38709c02a5a0bddd0c09785ede0c81bb54343af869ac8b1",
   "backend/data/README.md": "d86764c95344581ca84818d037a990fecf3e874b45e8cc678c70ce1ac73a6c62",
-  "render.yaml": "bd1fa2e2b36e854c68c39f80e6e8e4ccf270b41ba5d71247b96d8cc549bcdbf5"
+  "render.yaml": "bd1fa2e2b36e854c68c39f80e6e8e4ccf270b41ba5d71247b96d8cc549bcdbf5",
+  "backend/test_journal_metrics.py": "087f18b8e7e70764ebf1b634ec8ff18d58e9ea6b290764739f933f856bb6dd9a"
 }
